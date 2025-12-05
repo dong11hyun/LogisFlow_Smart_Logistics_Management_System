@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 db_config = {
     'host': 'localhost',
     'user': 'root',       
-    'password': 'test1234',  # 요청하신 비밀번호
+    'password': '',  # 요청하신 비밀번호
     'db': 'shipment',        # 요청하신 DB 이름
     'charset': 'utf8mb4'
 }
