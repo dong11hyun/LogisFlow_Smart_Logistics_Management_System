@@ -3,7 +3,7 @@ Database Design Trade-offs: The Balance Between Normalization and Performance
 
 ### 데이터 베이스 정규화 / 비정규화 진행 후 각각 성능 비교
 ```
-mysql -u root -p'암호' -e "DROP DATABASE IF EXISTS shipment; CREATE DATABASE shipment;"
+mysql -u root -p'암호' -e "DROP DATABASE IF EXISTS shipment; CREATE DATABASE shipment;"  필수 실행!
 mysql -u root -p'암호' shipment < schema/01_schema_ddl.sql
 mysql -u root -p'암호' shipment < schema/02_seed_data.sql
 mysql -u root -p'암호' shipment < schema/03_test_data_dump_3000.sql
@@ -60,10 +60,9 @@ SET
 SELECT SQL_NO_CACHE
     s.shipment_id,
     s.created_at,
-    s.current_status  -- ⚡ 여기가 핵심입니다 (서브쿼리 삭제 -> 컬럼 조회)
+    s.current_status  -- 핵심(서브쿼리 삭제 -> 컬럼 조회)
 FROM 
     shipments s
--- 정렬 조건이 시나리오 B에 없었으므로 여기서도 생략합니다. (기본 PK순)
 LIMIT 500;
 ```
 
