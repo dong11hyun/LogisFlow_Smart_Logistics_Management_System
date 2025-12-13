@@ -68,3 +68,13 @@ LIMIT 500;
 ```
 
 > LIMIT 500	500 row(s) returned	0.000 sec / 0.000 sec </결과>
+
+#### 2025_12_13 정규화/ 인덱스 정규화 / 비정규화 성능 비교 모니터링
+``` 
+    python benchmark_v1(정규화_비정규화).py 
+    python benchmark_v2(인덱스_비정규화).py
+    - 위 코드 실행 후 성능체크.
+    - 파일 클릭 후 mysql 비밀번호 입력 필요.
+    - import 체크 후 필요한 파일 설치 필요.
+```
+
