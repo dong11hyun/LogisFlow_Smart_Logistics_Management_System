@@ -2,6 +2,7 @@
 Database Design Trade-offs: The Balance Between Normalization and Performance
 
 ### 데이터 베이스 정규화 / 비정규화 진행 후 각각 성능 비교
+- MySQL  약 65만건
 ```
 mysql -u root -p'암호' -e "DROP DATABASE IF EXISTS shipment; CREATE DATABASE shipment;"  필수 실행!
 mysql -u root -p'암호' shipment < schema/01_schema_ddl.sql
@@ -9,9 +10,20 @@ mysql -u root -p'암호' shipment < schema/02_seed_data.sql
 mysql -u root -p'암호' shipment < schema/03_test_data_dump_3000.sql
 mysql -u root -p'암호' shipment < schema/04_shipment_backup.sql
 ```
+---
+- PostgreSQL  약 65만건
+-U: 사용자명(기본: postgres), -d: 데이터베이스명, -f: 파일 실행
+```
+psql -U postgres -d postgres -c "ALTER DATABASE shipment is_template = false;"  #(삭제 보호중 일때 실행)
+psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS shipment;"   #필수 실행!
+psql -U postgres -d postgres -c "CREATE DATABASE shipment;"           #필수 실행!
+psql -U postgres -d shipment -f schema/post_01_schema_ddl.sql                #필수 스키마 파일
+psql -U postgres -d shipment -f schema/04_shipment_backup_pg_fixed.sql       #큰 데이터
+```
+
 
 #### 2025_12_05
-04_shipment_backup = > 약 50만건 더미데이터.
+04_shipment_backup = > 약 65만건 더미데이터.
 
 - 정규화 테이블 조회 방법 / 인덱스회피 / 성능과부하
 ``` sql
@@ -77,7 +89,7 @@ LIMIT 500;
     - import 체크 후 필요한 파일 설치 필요.
 ```
 
-#### 2025_12_17 PostgreSQL 정규화 / 비정규화 코드
+#### 2025_12_17 PostgreSQL 정규화 / 인덱스_정규화 / 비정규화 코드
 
 - 정규화 코드
 ```sql
