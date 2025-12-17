@@ -95,6 +95,25 @@ SELECT
 FROM shipments s
 LIMIT 500;
 ```
+---
+
+- 정규화(인덱스 최적화) 코드
+
+```sql
+SELECT
+    s.shipment_id,
+    s.created_at,
+    (
+        SELECT u.status_code
+        FROM shipment_updates u
+        WHERE u.shipment_id = s.shipment_id   -- 캐스팅 제거
+        ORDER BY u.timestamp DESC
+        LIMIT 1
+    ) AS current_status
+FROM shipments s
+LIMIT 500;
+```
+---
 
 - 비정규화 코드
 
