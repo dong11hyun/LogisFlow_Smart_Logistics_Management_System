@@ -9,7 +9,7 @@ import threading
 db_config = {
     'host': 'localhost',
     'user': 'root',
-    'password': '',  # ★ 여기에 비밀번호 입력 ★
+    'password': 'test1234',  # ★ 여기에 비밀번호 입력 ★
     'db': 'shipment',
     'charset': 'utf8mb4'
 }

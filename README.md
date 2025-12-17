@@ -77,3 +77,61 @@ LIMIT 500;
     - import 체크 후 필요한 파일 설치 필요.
 ```
 
+#### 2025_12_17 PostgreSQL 정규화 / 비정규화 코드
+
+- 정규화 코드
+```sql
+SELECT
+    s.shipment_id,
+    s.created_at,
+    (
+        SELECT u.status_code
+        FROM shipment_updates u
+        -- 컬럼에 함수/캐스팅 적용 → 인덱스 사용 불가 → Seq Scan
+        WHERE u.shipment_id::text = s.shipment_id::text
+        ORDER BY u.timestamp DESC
+        LIMIT 1
+    ) AS current_status
+FROM shipments s
+LIMIT 500;
+```
+
+- 비정규화 코드
+
+1. 비정규화 컬럼 추가 (현재 상태, 최종 업데이트 시간)
+```sql
+ALTER TABLE shipments
+ADD COLUMN current_status VARCHAR(50) DEFAULT '접수대기',
+ADD COLUMN last_updated_at TIMESTAMP;
+```
+
+2. 기존 로그 데이터를 바탕으로 최신 상태값 채워넣기 (Update Join) 미지원으로 변환
+```sql
+UPDATE shipments s
+SET
+    current_status = latest_log.status_code,
+    last_updated_at = latest_log.timestamp
+FROM (
+    SELECT t1.shipment_id, t1.status_code, t1.timestamp
+    FROM shipment_updates t1
+    JOIN (
+        SELECT shipment_id, MAX(timestamp) AS max_ts
+        FROM shipment_updates
+        GROUP BY shipment_id
+    ) t2
+      ON t1.shipment_id = t2.shipment_id
+     AND t1.timestamp = t2.max_ts
+) latest_log
+WHERE s.shipment_id = latest_log.shipment_id;
+```
+
+3. 비정규화 테이블 조회
+```sql
+SELECT
+    s.shipment_id,
+    s.created_at,
+    s.current_status
+FROM shipments s
+LIMIT 500;
+```
+#### mySQL 과 PostgreSQL 은 문법구조가 다르므로 각각 코드 참고해서 실행할 것
