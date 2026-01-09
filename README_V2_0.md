@@ -214,3 +214,42 @@ LogisFlow/
 
 ### 4. 데이터 아카이빙 자동화
 - **계획**: AWS Glue/Athena를 활용하여 Cold 데이터를 S3 Glacier로 자동 이관하고, 필요 시 쿼리할 수 있는 파이프라인 구축.
+
+---
+
+### 3. 메시지 큐 인프라 구축
+- **현황**: Python `queue` 모듈을 사용한 인메모리 에뮬레이션.
+- **계획**: 
+  - 실제 **Kafka** 클러스터를 연동하여 서비스 간 결합도를 낮추고 비동기 처리의 내구성을 보장.
+
+### 4. 데이터 아카이빙 자동화
+- **계획**: AWS S3(로컬 에뮬레이션)와 `COPY` 명령어를 활용하여 Cold 데이터를 파일로 이관하고 DB에서 제거하는 파이프라인 구축.
+
+---
+
+## 🔬 Scale-Up Architecture (Blueprint) - 1,000만 건 검증
+
+현재 프로젝트는 **PostgreSQL에 1,000만 건(약 10GB)**의 실 데이터를 적재하여 Enterprise급 아키텍처를 검증합니다.
+
+### Step 1. [Q3 정합성] 쓰기 분리 및 지연 허용 (Eventual Consistency)
+- **문제**: 트래픽 폭주 시 `shipments`와 `shipment_updates` 동시 갱신으로 인한 DB Lock 발생.
+- **해결책**:
+  1. 사용자 요청은 **Kafka Producer**로 이벤트만 전송하고 즉시 응답 (0.01초).
+  2. `shipments` 테이블은 건드리지 않음.
+  3. **Kafka Consumer**가 후처리로 `shipments` 상태를 비동기 갱신.
+- **효과**: 순간 트래픽이 몰려도 DB는 죽지 않음 (대시보드 반영 지연 허용).
+
+### Step 2. [Q4 조회 최적화] 파티셔닝 (Partitioning) & 인덱싱
+- **문제**: 1,000만 건 테이블 Full Scan 시 조회 속도 저하.
+- **해결책**:
+  1. `shipment_updates` 테이블을 **일(Day)** 단위로 파티셔닝 (`PARTITION BY RANGE`).
+  2. `(shipment_id, timestamp DESC)` 복합 인덱스 적용.
+- **증명**: `EXPLAIN ANALYZE` 실행 시 특정 날짜 조회 비용이 1/365로 감소함을 증명 (**Partition Pruning**).
+
+### Step 3. [Q5 수명주기] 데이터 다이어트 (ILM)
+- **문제**: 데이터가 무한정 쌓이며 스토리지 비용 증가 및 성능 저하.
+- **해결책 (Micro-ILM)**:
+  1. **Hot**: 최근 3일 데이터 (고성능 SSD / 파티션 테이블).
+  2. **Cold**: 3일 지난 파티션은 **Detach** 후 파일(`.csv.gz`)로 백업.
+  3. **삭제**: `DROP TABLE` 명령어로 파티션 단위 0.1초 삭제 (Delete 부하 없음).
+
