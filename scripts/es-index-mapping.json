@@ -1,0 +1,44 @@
+{
+    "settings": {
+        "number_of_shards": 3,
+        "number_of_replicas": 0,
+        "refresh_interval": "5s",
+        "index.mapping.total_fields.limit": 2000
+    },
+    "mappings": {
+        "properties": {
+            "update_id": {
+                "type": "long"
+            },
+            "shipment_id": {
+                "type": "integer"
+            },
+            "status_code": {
+                "type": "keyword"
+            },
+            "notes": {
+                "type": "text",
+                "analyzer": "standard"
+            },
+            "timestamp": {
+                "type": "date",
+                "format": "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss||epoch_millis"
+            },
+            "company_id": {
+                "type": "integer"
+            },
+            "company_name": {
+                "type": "keyword"
+            },
+            "origin_warehouse_name": {
+                "type": "keyword"
+            },
+            "destination_warehouse_name": {
+                "type": "keyword"
+            },
+            "created_at": {
+                "type": "date"
+            }
+        }
+    }
+}
