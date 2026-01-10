@@ -1,0 +1,237 @@
+# =============================================================================
+# LogisFlow 스마트 물류 플랫폼 - Docker Compose 환경 구성
+# =============================================================================
+# 
+# 📌 사용법:
+#   1. 최초 실행:  docker-compose up -d
+#   2. 로그 확인:  docker-compose logs -f [서비스명]
+#   3. 중지:       docker-compose down
+#   4. 완전 초기화 (데이터 삭제): docker-compose down -v
+#
+# 📌 서비스 목록:
+#   - postgres      : 메인 데이터베이스 (PostgreSQL 15)
+#   - zookeeper     : Kafka 클러스터 관리
+#   - kafka         : 메시지 브로커 (Q3 전략 3용)
+#   - elasticsearch : 이력 조회 최적화 (Q4 방안 2용)
+#   - redis         : 캐시 서버 (추후 확장용)
+#
+# 📌 포트 정리:
+#   - 5432  : PostgreSQL
+#   - 9092  : Kafka (외부 접속)
+#   - 29092 : Kafka (내부 컨테이너 간 통신)
+#   - 9200  : Elasticsearch
+#   - 6379  : Redis
+#
+# 📌 동료 개발자를 위한 안내:
+#   - .env 파일에서 비밀번호 등 민감 정보를 관리합니다.
+#   - schema/ 폴더의 SQL 파일이 PostgreSQL 초기화 시 자동 실행됩니다.
+#   - 각 서비스의 healthcheck가 설정되어 있어 의존성 순서가 보장됩니다.
+# =============================================================================
+
+version: '3.8'
+
+# =============================================================================
+# 공통 환경 변수 (x- 접두사는 YAML 앵커용, Docker에서 무시됨)
+# =============================================================================
+x-common-env: &common-env
+  TZ: Asia/Seoul
+
+services:
+  # ===========================================================================
+  # PostgreSQL - 메인 데이터베이스
+  # ===========================================================================
+  # 역할: shipments, shipment_updates 등 핵심 테이블 저장
+  # 초기화: schema/ 폴더의 .sql 파일이 알파벳 순서로 자동 실행됨
+  # ===========================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: logisflow-postgres
+    restart: unless-stopped
+    environment:
+      <<: *common-env
+      POSTGRES_DB: ${POSTGRES_DB:-logisflow}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-logisflow1234}
+      # 한글 정렬을 위한 로케일 설정
+      LANG: ko_KR.UTF-8
+      LC_ALL: ko_KR.UTF-8
+    ports:
+      - "5432:5432"
+    volumes:
+      # 데이터 영속성
+      - postgres_data:/var/lib/postgresql/data
+      # 초기화 스크립트 (알파벳 순서로 실행)
+      - ./schema:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-logisflow}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - logisflow-network
+
+  # ===========================================================================
+  # Zookeeper - Kafka 클러스터 코디네이터
+  # ===========================================================================
+  # 역할: Kafka 브로커 메타데이터 관리
+  # 주의: Kafka보다 먼저 실행되어야 함 (depends_on으로 보장)
+  # ===========================================================================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: logisflow-zookeeper
+    restart: unless-stopped
+    environment:
+      <<: *common-env
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - logisflow-network
+
+  # ===========================================================================
+  # Kafka - 메시지 브로커
+  # ===========================================================================
+  # 역할: Q3 전략 3 (비동기 최종 일관성)의 핵심 인프라
+  # 토픽: shipment-status-updates (상태 변경 이벤트)
+  # 
+  # 리스너 설명:
+  #   - INTERNAL (29092): 컨테이너 간 통신 (예: api → kafka)
+  #   - EXTERNAL (9092): 호스트에서 접속 (예: 로컬 Python 스크립트)
+  # ===========================================================================
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: logisflow-kafka
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      # 리스너 설정 (내부/외부 분리)
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      # 단일 브로커 환경용 설정
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      # 토픽 자동 생성 활성화 (개발 편의)
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      # 메시지 보존 기간 (7일)
+      KAFKA_LOG_RETENTION_HOURS: 168
+    ports:
+      - "9092:9092"   # 외부 접속용
+      - "29092:29092" # 내부 컨테이너용
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - logisflow-network
+
+  # ===========================================================================
+  # Elasticsearch - 이력 데이터 검색 엔진
+  # ===========================================================================
+  # 역할: Q4 방안 2 (NoSQL 이관)의 핵심 인프라
+  # 인덱스: shipment-updates (타임라인 조회 최적화)
+  # 
+  # 주의: 
+  #   - 메모리 사용량이 높음 (기본 1GB 힙)
+  #   - 보안 비활성화 (개발 환경 전용)
+  # ===========================================================================
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: logisflow-elasticsearch
+    restart: unless-stopped
+    environment:
+      <<: *common-env
+      # 단일 노드 모드
+      discovery.type: single-node
+      # 보안 비활성화 (개발용)
+      xpack.security.enabled: "false"
+      # JVM 힙 메모리 설정 (시스템에 맞게 조정)
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+      # 클러스터 이름
+      cluster.name: logisflow-es-cluster
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - logisflow-network
+    # 메모리 제한 (OOM 방지)
+    mem_limit: 1g
+
+  # ===========================================================================
+  # Redis - 캐시 서버
+  # ===========================================================================
+  # 역할: 
+  #   - 조회 결과 캐싱 (추후 구현)
+  #   - 비동기 작업 큐 (Celery 등과 연동 가능)
+  # ===========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: logisflow-redis
+    restart: unless-stopped
+    environment:
+      <<: *common-env
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - logisflow-network
+    # 메모리 제한
+    mem_limit: 256m
+
+# =============================================================================
+# 볼륨 정의 - 데이터 영속성 보장
+# =============================================================================
+volumes:
+  postgres_data:
+    name: logisflow-postgres-data
+  zookeeper_data:
+    name: logisflow-zookeeper-data
+  zookeeper_log:
+    name: logisflow-zookeeper-log
+  kafka_data:
+    name: logisflow-kafka-data
+  elasticsearch_data:
+    name: logisflow-elasticsearch-data
+  redis_data:
+    name: logisflow-redis-data
+
+# =============================================================================
+# 네트워크 정의 - 서비스 간 통신
+# =============================================================================
+networks:
+  logisflow-network:
+    name: logisflow-network
+    driver: bridge
