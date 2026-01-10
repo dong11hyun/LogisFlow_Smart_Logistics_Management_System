@@ -2,7 +2,7 @@
 
 ---
 
-## 🚀 구현 순서 (세분화 버전)
+##  구현 순서 (세분화 버전)
 
 > **총 예상 기간: 14일 (2주)**
 
@@ -10,9 +10,9 @@
 
 | 순번 | 작업 | 예상 시간 | 근거 |
 |:----:|------|:--------:|------|
-| 1-1 | `docker-compose.yml` 작성 (PG, Kafka, Zookeeper, ES, Redis) | 4h | 모든 서비스의 기반이므로 최우선. 개발 환경 통일 필수 |
-| 1-2 | PostgreSQL 초기화 스키마 구성 (`01_schema_ddl.sql`) | 2h | API 개발 전 DB 스키마 필요 |
-| 1-3 | Kafka 토픽 생성 및 연결 테스트 (`shipment-status-updates`) | 2h | Q3 전략 3(비동기)에 필수. 연결 검증 선행 |
+| 1-1😀 | `docker-compose.yml` 작성 (PG, Kafka, Zookeeper, ES, Redis) | 4h | 모든 서비스의 기반이므로 최우선. 개발 환경 통일 필수 |
+| 1-2😀 | PostgreSQL 초기화 스키마 구성 (`01_schema_ddl.sql`) | 2h | API 개발 전 DB 스키마 필요 |
+| 1-3😀| Kafka 토픽 생성 및 연결 테스트 (`shipment-status-updates`) | 2h | Q3 전략 3(비동기)에 필수. 연결 검증 선행 |
 | 1-4 | Elasticsearch 인덱스 설정 (`shipment-updates`) | 2h | Q4 방안 2(NoSQL)에 필수 |
 | 1-5 | Docker Compose 통합 테스트 (전체 서비스 `up` 확인) | 2h | 전체 연결 검증 후 다음 단계 진행 가능 |
 
