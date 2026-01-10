@@ -56,7 +56,7 @@ services:
       LANG: ko_KR.UTF-8
       LC_ALL: ko_KR.UTF-8
     ports:
-      - "5432:5432"
+      - "5433:5432"   # 호스트는 5433, 컨테이너는 5432 (1-2진행중 변경)
     volumes:
       # 데이터 영속성
       - postgres_data:/var/lib/postgresql/data
