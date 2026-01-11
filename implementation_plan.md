@@ -29,10 +29,10 @@
 
 | 순번 | 작업 | 예상 시간 | 근거 |
 |:----:|------|:--------:|------|
-| 3-1 | FastAPI 프로젝트 구조 세팅 (`backend/app/`) | 2h | 표준 디렉토리 구조 및 의존성 설정 |
-| 3-2 | 모델/라우터/서비스 기본 구현 (CRUD) | 4h | shipments, companies, warehouses 기본 API |
-| 3-3 | 상태 변경 API 구현 (`POST /shipments/{id}/status`) | 4h | Q3 3가지 전략의 분기점. 전략 선택 파라미터 포함 |
-| 3-4 | 타임라인 조회 API 구현 (`GET /shipments/{id}/timeline`) | 4h | Q4 2가지 방안의 분기점. 저장소 선택 가능 |
+| 3-1😀 | FastAPI 프로젝트 구조 세팅 (`backend/app/`) | 2h | 표준 디렉토리 구조 및 의존성 설정 |
+| 3-2😀 | 모델/라우터/서비스 기본 구현 (CRUD) | 4h | shipments, companies, warehouses 기본 API |
+| 3-3😀 | 상태 변경 API 구현 (`POST /shipments/{id}/status`) | 4h | Q3 3가지 전략의 분기점. 전략 선택 파라미터 포함 |
+| 3-4😀 | 타임라인 조회 API 구현 (`GET /shipments/{id}/timeline`) | 4h | Q4 2가지 방안의 분기점. 저장소 선택 가능 |
 
 ### 4단계: Q3 정합성 전략 구현 (4일)
 

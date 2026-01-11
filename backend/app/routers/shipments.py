@@ -1,0 +1,207 @@
+# =============================================================================
+# LogisFlow Shipments Router
+# =============================================================================
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+from sqlalchemy import desc
+from typing import Optional
+import time
+
+from app.database import get_db
+from app.models import Shipment, ShipmentUpdate
+from app.schemas import (
+    ShipmentResponse, 
+    ShipmentListResponse,
+    StatusUpdateRequest,
+    StatusUpdateResponse,
+    TimelineResponse,
+    TimelineEntry
+)
+
+router = APIRouter(prefix="/shipments", tags=["Shipments"])
+
+
+# =============================================================================
+# 화물 목록 조회
+# =============================================================================
+
+@router.get("", response_model=ShipmentListResponse)
+def get_shipments(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    status: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    화물 목록 조회
+    
+    - skip: 건너뛸 개수
+    - limit: 조회 개수 (최대 100)
+    - status: 상태 필터 (선택)
+    """
+    query = db.query(Shipment)
+    
+    if status:
+        query = query.filter(Shipment.current_status == status)
+    
+    total = query.count()
+    items = query.order_by(desc(Shipment.created_at)).offset(skip).limit(limit).all()
+    
+    return ShipmentListResponse(total=total, items=items)
+
+
+# =============================================================================
+# 화물 상세 조회
+# =============================================================================
+
+@router.get("/{shipment_id}", response_model=ShipmentResponse)
+def get_shipment(shipment_id: int, db: Session = Depends(get_db)):
+    """
+    화물 상세 조회
+    
+    비정규화된 컬럼 덕분에 JOIN 없이 바로 조회!
+    """
+    shipment = db.query(Shipment).filter(Shipment.shipment_id == shipment_id).first()
+    
+    if not shipment:
+        raise HTTPException(status_code=404, detail="화물을 찾을 수 없습니다")
+    
+    return shipment
+
+
+# =============================================================================
+# 상태 변경 API (Q3 테스트용!) ⭐
+# =============================================================================
+
+@router.post("/{shipment_id}/status", response_model=StatusUpdateResponse)
+def update_status(
+    shipment_id: int,
+    request: StatusUpdateRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    화물 상태 변경 (Q3 정합성 전략 테스트용)
+    
+    📌 strategy 옵션:
+    - "sync": 동기 트랜잭션 (전략 1)
+    - "trigger": DB 트리거 (전략 2) - TODO
+    - "async": Kafka 비동기 (전략 3) - TODO
+    
+    현재는 sync 전략만 구현됨
+    """
+    start_time = time.time()
+    
+    # 화물 존재 확인
+    shipment = db.query(Shipment).filter(Shipment.shipment_id == shipment_id).first()
+    if not shipment:
+        raise HTTPException(status_code=404, detail="화물을 찾을 수 없습니다")
+    
+    strategy = request.strategy or "sync"
+    
+    if strategy == "sync":
+        # =====================================================
+        # 전략 1: 동기 트랜잭션
+        # 하나의 트랜잭션에서 INSERT + UPDATE 모두 수행
+        # =====================================================
+        
+        # 1. 상태 로그 INSERT
+        new_update = ShipmentUpdate(
+            shipment_id=shipment_id,
+            status_code=request.status_code.value,
+            notes=request.notes
+        )
+        db.add(new_update)
+        
+        # 2. 화물 상태 UPDATE (비정규화 컬럼 동기화)
+        shipment.current_status = request.status_code.value
+        shipment.last_updated_at = new_update.timestamp
+        
+        # 3. 커밋 (하나의 트랜잭션)
+        db.commit()
+        db.refresh(new_update)
+        
+    elif strategy == "trigger":
+        # 전략 2: DB 트리거 (4단계에서 구현 예정)
+        raise HTTPException(status_code=501, detail="트리거 전략은 아직 구현되지 않았습니다")
+        
+    elif strategy == "async":
+        # 전략 3: Kafka 비동기 (4단계에서 구현 예정)
+        raise HTTPException(status_code=501, detail="비동기 전략은 아직 구현되지 않았습니다")
+        
+    else:
+        raise HTTPException(status_code=400, detail=f"알 수 없는 전략: {strategy}")
+    
+    processing_time = (time.time() - start_time) * 1000  # ms
+    
+    return StatusUpdateResponse(
+        update_id=new_update.update_id,
+        shipment_id=new_update.shipment_id,
+        status_code=new_update.status_code,
+        notes=new_update.notes,
+        timestamp=new_update.timestamp,
+        processing_time_ms=round(processing_time, 2),
+        strategy_used=strategy
+    )
+
+
+# =============================================================================
+# 타임라인 조회 API (Q4 테스트용!) ⭐
+# =============================================================================
+
+@router.get("/{shipment_id}/timeline", response_model=TimelineResponse)
+def get_timeline(
+    shipment_id: int,
+    source: str = Query("postgresql", description="데이터 소스: postgresql 또는 elasticsearch"),
+    db: Session = Depends(get_db)
+):
+    """
+    화물 상태 변경 타임라인 조회 (Q4 저장소 비교 테스트용)
+    
+    📌 source 옵션:
+    - "postgresql": PostgreSQL 파티션 테이블에서 조회 (방안 1)
+    - "elasticsearch": Elasticsearch에서 조회 (방안 2) - TODO
+    """
+    start_time = time.time()
+    
+    # 화물 존재 확인
+    shipment = db.query(Shipment).filter(Shipment.shipment_id == shipment_id).first()
+    if not shipment:
+        raise HTTPException(status_code=404, detail="화물을 찾을 수 없습니다")
+    
+    if source == "postgresql":
+        # =====================================================
+        # 방안 1: PostgreSQL 파티션 테이블에서 조회
+        # =====================================================
+        updates = db.query(ShipmentUpdate)\
+            .filter(ShipmentUpdate.shipment_id == shipment_id)\
+            .order_by(desc(ShipmentUpdate.timestamp))\
+            .all()
+        
+        timeline = [
+            TimelineEntry(
+                update_id=u.update_id,
+                status_code=u.status_code,
+                notes=u.notes,
+                timestamp=u.timestamp
+            )
+            for u in updates
+        ]
+        
+    elif source == "elasticsearch":
+        # 방안 2: Elasticsearch (5단계에서 구현 예정)
+        raise HTTPException(status_code=501, detail="Elasticsearch 조회는 아직 구현되지 않았습니다")
+        
+    else:
+        raise HTTPException(status_code=400, detail=f"알 수 없는 소스: {source}")
+    
+    query_time = (time.time() - start_time) * 1000  # ms
+    
+    return TimelineResponse(
+        shipment_id=shipment_id,
+        current_status=shipment.current_status,
+        timeline=timeline,
+        total_updates=len(timeline),
+        query_time_ms=round(query_time, 2),
+        source=source
+    )
