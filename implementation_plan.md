@@ -38,9 +38,12 @@
 
 | 순번 | 작업 | 예상 시간 | 근거 |
 |:----:|------|:--------:|------|
-| 4-1 | **전략 1: 동기 트랜잭션** (`strategy_1_sync_tx.py`) | 1일 | 가장 단순. 베이스라인 성능 측정용 |
-| 4-2 | **전략 2: PostgreSQL 트리거** (`strategy_2_trigger.sql`) | 1일 | DB 레벨 자동화. 트리거 로직 및 테스트 |
-| 4-3 | **전략 3: Kafka 비동기** (`strategy_3_kafka.py`, `consumer.py`) | 2일 | 가장 복잡. Producer/Consumer 분리 구현 |
+| 4-1😀 | **전략 1: 동기트랜잭션** | - |  3-3😀에서 `strategy=sync`로 구현 완료 |
+| 4-2 | **전략 2: PostgreSQL 트리거 SQL 작성** | 2h | 트리거 함수 + 트리거 생성 |
+| 4-3 | **전략 2: 트리거 전략 API 연결** (`strategy=trigger`) | 1h | INSERT만 수행, 트리거가 자동 동기화 |
+| 4-4 | **전략 3: Kafka Producer 구현** | 2h | aiokafka로 메시지 발행 |
+| 4-5 | **전략 3: Kafka Consumer 구현** | 3h | 백그라운드 워커, DB 업데이트 로직 |
+| 4-6 | **전략 3: 비동기 전략 API 연결** (`strategy=async`) | 1h | INSERT + Kafka 발행, 즉시 응답 |
 
 ### 5단계: Q4 저장소 비교 (2일)
 
