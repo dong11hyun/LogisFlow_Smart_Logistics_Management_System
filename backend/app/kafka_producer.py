@@ -46,9 +46,36 @@ async def send_status_update(shipment_id: int, status_code: str, timestamp: str)
         "event_type": "STATUS_UPDATE"
     }
     
-    # Fire-and-Forget (기다리지 않음) 또는 await (메시지 전송 보장)
-    # 여기서는 빠른 응답을 위해 await하지만, Consumer 처리는 기다리지 않음
-    await producer.send_and_wait(
+    # Fire-and-Forget: 메시지를 버퍼에만 넣고 즉시 반환
+    # 브로커 응답을 기다리지 않아 API 응답 속도가 빨라짐
+    # 주의: 메시지 유실 가능성 있음 (프로덕션에서는 적절한 에러 핸들링 필요)
+    await producer.send(
         settings.KAFKA_TOPIC_STATUS_UPDATES,
-        message
+        value=message
     )
+    # 버퍼에 있는 메시지 전송 시작 (비동기, 기다리지 않음)
+
+
+async def send_status_update_pure(shipment_id: int, status_code: str, notes: str, timestamp: str):
+    """
+    Q3 전략 4: 완전 비동기 메시지 발행 (async_pure)
+    
+    API는 DB 작업 없이 Kafka로만 이벤트 발행.
+    Consumer가 INSERT + UPDATE 모두 처리함.
+    → 극적으로 빠른 API 응답!
+    """
+    producer = await get_kafka_producer()
+    
+    message = {
+        "shipment_id": shipment_id,
+        "status_code": status_code,
+        "notes": notes,
+        "timestamp": timestamp,
+        "event_type": "INSERT_AND_UPDATE"  # Consumer가 INSERT+UPDATE 둘 다 처리
+    }
+    
+    await producer.send(
+        settings.KAFKA_TOPIC_STATUS_UPDATES,
+        value=message
+    )
+

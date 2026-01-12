@@ -58,11 +58,14 @@ async def consume_status_updates():
 
 async def process_message(data):
     """메시지 처리 및 DB 업데이트"""
+    from app.models import ShipmentUpdate  # 여기서 import (순환 참조 방지)
+    
     db: Session = SessionLocal()
     try:
         shipment_id = data["shipment_id"]
         status_code = data["status_code"]
         timestamp_str = data["timestamp"]
+        event_type = data.get("event_type", "STATUS_UPDATE")
         
         # ISO 포맷 문자열 -> datetime 객체
         timestamp = datetime.fromisoformat(timestamp_str)
@@ -70,15 +73,37 @@ async def process_message(data):
         # 화물 조회
         shipment = db.query(Shipment).filter(Shipment.shipment_id == shipment_id).first()
         
-        if shipment:
-            # 상태 업데이트 (비정규화 컬럼 동기화)
+        if not shipment:
+            print(f"⚠️ [DB Skip] Shipment {shipment_id} not found")
+            return
+        
+        if event_type == "INSERT_AND_UPDATE":
+            # async_pure 전략: INSERT + UPDATE 모두 처리
+            notes = data.get("notes", "")
+            
+            # 1. shipment_updates에 INSERT
+            new_update = ShipmentUpdate(
+                shipment_id=shipment_id,
+                status_code=status_code,
+                notes=notes,
+                timestamp=timestamp
+            )
+            db.add(new_update)
+            
+            # 2. shipments 테이블 UPDATE
+            shipment.current_status = status_code
+            shipment.last_updated_at = timestamp
+            
+            db.commit()
+            print(f"✅ [DB INSERT+UPDATE] Shipment {shipment_id} -> {status_code}")
+            
+        else:
+            # 기존 async 전략: UPDATE만 (INSERT는 API에서 이미 처리됨)
             shipment.current_status = status_code
             shipment.last_updated_at = timestamp
             
             db.commit()
             print(f"✅ [DB Updated] Shipment {shipment_id} -> {status_code}")
-        else:
-            print(f"⚠️ [DB Skip] Shipment {shipment_id} not found")
             
     except Exception as e:
         print(f"❌ [Process Error] {e}")

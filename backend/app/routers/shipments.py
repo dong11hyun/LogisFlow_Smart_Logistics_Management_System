@@ -145,12 +145,13 @@ async def update_status(
         
     elif strategy == "async":
         # =====================================================
-        # 전략 3: Kafka 비동기
-        # 1. 상태 로그 INSERT (DB)
+        # 전략 3: Kafka 비동기 (DB INSERT + Kafka)
+        # 1. 상태 로그 INSERT (DB) - 여전히 동기 대기
         # 2. Kafka 메시지 발행 (이벤트)
         # 3. shipments 테이블 업데이트는 Consumer가 나중에 처리
         # =====================================================
         from app.kafka_producer import send_status_update
+        from datetime import datetime
         
         # 1. 상태 로그 INSERT
         new_update = ShipmentUpdate(
@@ -172,6 +173,79 @@ async def update_status(
         
         # 주의: shipments 테이블은 아직 업데이트되지 않음! (Eventual Consistency)
 
+    elif strategy == "async_pure":
+        # =====================================================
+        # 전략 4: 완전 비동기 (Kafka ONLY)
+        # DB 작업 없이 Kafka로만 메시지 발행!
+        # Consumer가 INSERT + UPDATE 모두 처리
+        # =====================================================
+        from app.kafka_producer import send_status_update_pure
+        from datetime import datetime
+        
+        current_timestamp = datetime.now()
+        notes_value = request.notes or ""
+        
+        # Kafka로만 발행 (DB 대기 없음!)
+        await send_status_update_pure(
+            shipment_id=shipment_id,
+            status_code=request.status_code.value,
+            notes=notes_value,
+            timestamp=current_timestamp.isoformat()
+        )
+        
+        # 가짜 응답 객체 생성 (실제 ID는 Consumer에서 생성됨)
+        class FakeUpdate:
+            pass
+        
+        new_update = FakeUpdate()
+        new_update.update_id = 0  # 임시 ID
+        new_update.shipment_id = shipment_id
+        new_update.status_code = request.status_code.value
+        new_update.notes = notes_value
+        new_update.timestamp = current_timestamp
+
+    elif strategy == "async_fire":
+        # =====================================================
+        # 전략 5: 완전 Fire-and-Forget (SELECT 쿼리도 없음!)
+        # DB 작업 완전 제거, 오직 Kafka 전송만!
+        # 가장 빠른 응답 속도 (실제 비동기 효과 측정용)
+        # =====================================================
+        from app.kafka_producer import send_status_update_pure
+        from datetime import datetime
+        
+        current_timestamp = datetime.now()
+        notes_value = request.notes or ""
+        
+        # Kafka로만 발행 (SELECT/INSERT 없음!)
+        await send_status_update_pure(
+            shipment_id=shipment_id,
+            status_code=request.status_code.value,
+            notes=notes_value,
+            timestamp=current_timestamp.isoformat()
+        )
+        
+        # 가짜 응답 객체 생성
+        class FakeUpdate:
+            pass
+        
+        new_update = FakeUpdate()
+        new_update.update_id = 0
+        new_update.shipment_id = shipment_id
+        new_update.status_code = request.status_code.value
+        new_update.notes = notes_value
+        new_update.timestamp = current_timestamp
+        
+        # shipment 변수가 없으므로 여기서 바로 응답 반환
+        processing_time = (time.time() - start_time) * 1000
+        return StatusUpdateResponse(
+            update_id=new_update.update_id,
+            shipment_id=new_update.shipment_id,
+            status_code=new_update.status_code,
+            notes=new_update.notes,
+            timestamp=new_update.timestamp,
+            processing_time_ms=round(processing_time, 2),
+            strategy_used=strategy
+        )
         
     else:
         raise HTTPException(status_code=400, detail=f"알 수 없는 전략: {strategy}")
