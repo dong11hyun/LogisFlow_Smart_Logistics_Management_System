@@ -64,7 +64,7 @@ class ShipmentUpdate(Base):
     """상태 변경 로그 모델 (파티션 테이블)"""
     __tablename__ = "shipment_updates"
     
-    update_id = Column(BigInteger, primary_key=True, index=True)
+    update_id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
     shipment_id = Column(Integer, ForeignKey("shipments.shipment_id"), nullable=False)
     status_code = Column(String(50), nullable=False)
     notes = Column(String(255))

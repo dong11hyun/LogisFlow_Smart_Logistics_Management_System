@@ -122,8 +122,26 @@ def update_status(
         db.refresh(new_update)
         
     elif strategy == "trigger":
-        # 전략 2: DB 트리거 (4단계에서 구현 예정)
-        raise HTTPException(status_code=501, detail="트리거 전략은 아직 구현되지 않았습니다")
+        # =====================================================
+        # 전략 2: DB 트리거
+        # INSERT만 수행하면 트리거가 알아서 shipments 테이블 업데이트
+        # =====================================================
+        
+        # 1. 상태 로그 INSERT (이것만 하면 됨!)
+        new_update = ShipmentUpdate(
+            shipment_id=shipment_id,
+            status_code=request.status_code.value,
+            notes=request.notes
+        )
+        db.add(new_update)
+        
+        # 2. 커밋
+        db.commit()
+        db.refresh(new_update)
+        
+        # 주의: 여기서는 shipment.current_status가 아직 갱신되지 않았을 수 있음 (DB 사이드 효과)
+        # 하지만 트리거는 동일 트랜잭션 내에서 실행되므로, 커밋 후 조회하면 반영되어 있음
+
         
     elif strategy == "async":
         # 전략 3: Kafka 비동기 (4단계에서 구현 예정)
