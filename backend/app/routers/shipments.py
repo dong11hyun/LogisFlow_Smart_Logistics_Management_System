@@ -75,7 +75,7 @@ def get_shipment(shipment_id: int, db: Session = Depends(get_db)):
 # =============================================================================
 
 @router.post("/{shipment_id}/status", response_model=StatusUpdateResponse)
-def update_status(
+async def update_status(
     shipment_id: int,
     request: StatusUpdateRequest,
     db: Session = Depends(get_db)
@@ -144,8 +144,34 @@ def update_status(
 
         
     elif strategy == "async":
-        # 전략 3: Kafka 비동기 (4단계에서 구현 예정)
-        raise HTTPException(status_code=501, detail="비동기 전략은 아직 구현되지 않았습니다")
+        # =====================================================
+        # 전략 3: Kafka 비동기
+        # 1. 상태 로그 INSERT (DB)
+        # 2. Kafka 메시지 발행 (이벤트)
+        # 3. shipments 테이블 업데이트는 Consumer가 나중에 처리
+        # =====================================================
+        from app.kafka_producer import send_status_update
+        
+        # 1. 상태 로그 INSERT
+        new_update = ShipmentUpdate(
+            shipment_id=shipment_id,
+            status_code=request.status_code.value,
+            notes=request.notes
+        )
+        db.add(new_update)
+        db.commit()
+        db.refresh(new_update)
+        
+        # 2. Kafka 메시지 발행
+        # timestamp는 JSON 직렬화를 위해 문자열로 변환
+        await send_status_update(
+            shipment_id=shipment_id,
+            status_code=request.status_code.value,
+            timestamp=new_update.timestamp.isoformat()
+        )
+        
+        # 주의: shipments 테이블은 아직 업데이트되지 않음! (Eventual Consistency)
+
         
     else:
         raise HTTPException(status_code=400, detail=f"알 수 없는 전략: {strategy}")

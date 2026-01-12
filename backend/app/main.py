@@ -4,16 +4,41 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from app.config import get_settings
 from app.routers import health, shipments
+from app.kafka_producer import get_kafka_producer, close_kafka_producer
+from app.kafka_consumer import consume_status_updates
+import asyncio
 
 settings = get_settings()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 시작 시: Kafka Producer 연결
+    await get_kafka_producer()
+    
+    # 시작 시: Kafka Consumer 백그라운드 실행
+    consumer_task = asyncio.create_task(consume_status_updates())
+    
+    yield
+    
+    # 종료 시: Kafka Producer 연결 해제
+    await close_kafka_producer()
+    
+    # 종료 시: Consumer 태스크 취소 (우아한 종료는 추가 로직 필요)
+    consumer_task.cancel()
+    try:
+        await consumer_task
+    except asyncio.CancelledError:
+        pass
 
 # =============================================================================
 # FastAPI 앱 생성
 # =============================================================================
 
 app = FastAPI(
+    lifespan=lifespan,
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     description="""
