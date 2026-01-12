@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from typing import Optional
+from datetime import datetime
 import time
 
 from app.database import get_db
@@ -307,8 +308,30 @@ def get_timeline(
         ]
         
     elif source == "elasticsearch":
-        # 방안 2: Elasticsearch (5단계에서 구현 예정)
-        raise HTTPException(status_code=501, detail="Elasticsearch 조회는 아직 구현되지 않았습니다")
+        # =====================================================
+        # 방안 2: Elasticsearch에서 조회
+        # =====================================================
+        from app.elasticsearch_client import get_timeline_from_es_sync
+        
+        # 동기 함수 사용 (이벤트 루프 문제 방지)
+        es_results = get_timeline_from_es_sync(shipment_id)
+        
+        timeline = []
+        for item in es_results:
+            # timestamp 문자열을 datetime으로 변환
+            ts = item.get("timestamp")
+            if isinstance(ts, str):
+                try:
+                    ts = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                except:
+                    ts = datetime.now()
+            
+            timeline.append(TimelineEntry(
+                update_id=item.get("update_id", 0),
+                status_code=item.get("status_code", ""),
+                notes=item.get("notes"),
+                timestamp=ts
+            ))
         
     else:
         raise HTTPException(status_code=400, detail=f"알 수 없는 소스: {source}")

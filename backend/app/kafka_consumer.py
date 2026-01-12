@@ -57,15 +57,18 @@ async def consume_status_updates():
         await consumer.stop()
 
 async def process_message(data):
-    """메시지 처리 및 DB 업데이트"""
+    """메시지 처리 및 DB 업데이트 + Elasticsearch 동기화"""
     from app.models import ShipmentUpdate  # 여기서 import (순환 참조 방지)
     
     db: Session = SessionLocal()
+    update_id = None
+    
     try:
         shipment_id = data["shipment_id"]
         status_code = data["status_code"]
         timestamp_str = data["timestamp"]
         event_type = data.get("event_type", "STATUS_UPDATE")
+        notes = data.get("notes", "")
         
         # ISO 포맷 문자열 -> datetime 객체
         timestamp = datetime.fromisoformat(timestamp_str)
@@ -79,7 +82,6 @@ async def process_message(data):
         
         if event_type == "INSERT_AND_UPDATE":
             # async_pure 전략: INSERT + UPDATE 모두 처리
-            notes = data.get("notes", "")
             
             # 1. shipment_updates에 INSERT
             new_update = ShipmentUpdate(
@@ -89,6 +91,8 @@ async def process_message(data):
                 timestamp=timestamp
             )
             db.add(new_update)
+            db.flush()  # update_id 생성
+            update_id = new_update.update_id
             
             # 2. shipments 테이블 UPDATE
             shipment.current_status = status_code
@@ -104,6 +108,29 @@ async def process_message(data):
             
             db.commit()
             print(f"✅ [DB Updated] Shipment {shipment_id} -> {status_code}")
+        
+        # =================================================================
+        # Elasticsearch 동기화 (Q4 방안 2)
+        # =================================================================
+        try:
+            from app.elasticsearch_client import index_status_update
+            
+            # update_id가 없으면 (기존 async 전략) 0 사용
+            if update_id is None:
+                update_id = 0
+            
+            await index_status_update(
+                update_id=update_id,
+                shipment_id=shipment_id,
+                status_code=status_code,
+                notes=notes,
+                timestamp=timestamp_str
+            )
+            print(f"✅ [ES Indexed] Shipment {shipment_id} -> {status_code}")
+            
+        except Exception as es_error:
+            # ES 실패해도 DB는 이미 성공했으므로 계속 진행
+            print(f"⚠️ [ES Sync Failed] {es_error}")
             
     except Exception as e:
         print(f"❌ [Process Error] {e}")
