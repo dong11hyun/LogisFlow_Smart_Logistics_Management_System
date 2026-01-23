@@ -39,9 +39,9 @@ DB_CONFIG = {
 }
 
 # 데이터 생성 설정
-TARGET_SHIPMENTS = 1_000_000         # 100만 건 화물 (테스트용, 원하면 10배로)
-AVG_UPDATES_PER_SHIPMENT = 10        # 화물당 평균 상태 변경 10회
-TARGET_UPDATES = TARGET_SHIPMENTS * AVG_UPDATES_PER_SHIPMENT  # 약 1000만 건 로그
+TARGET_SHIPMENTS = 10_000_000        # ★ 10배 증가: 1000만 건 화물 (async vs trigger 비교용)
+AVG_UPDATES_PER_SHIPMENT = 3         # ★ 화물당 평균 3회 (전체 3000만 로그)
+TARGET_UPDATES = TARGET_SHIPMENTS * AVG_UPDATES_PER_SHIPMENT  # 약 3000만 건 로그
 
 BATCH_SIZE = 5000                    # 배치 크기
 SEED_VALUE = 999                     # ★ 협업용 고정 시드
