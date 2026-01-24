@@ -33,7 +33,7 @@ DB_CONFIG = {
     'dbname': 'logisflow'
 }
 
-TARGET_SHIPMENTS = 3_000_000         # 300만 건
+TARGET_SHIPMENTS = 1_000_000         # 100만 건
 CHUNK_SIZE = 100_000                 # 워커당 10만 건씩 처리
 NUM_WORKERS = max(1, cpu_count() - 1)
 
