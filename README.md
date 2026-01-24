@@ -300,13 +300,14 @@ CREATE TABLE shipment_updates_2024_01 PARTITION OF shipment_updates
 
 > **비교 기준:** Server Avg Time (순수 서버 조회 시간)
 
-| 규모 | PostgreSQL | Elasticsearch | 승자 (개선율) |
-|:----:|:----------:|:-------------:|:-------------:|
-| **300만 건** | **24.51ms** | 72.51ms | PostgreSQL (66%↑) |
-| **3,000만 건** | **21.46ms** | 63.81ms | PostgreSQL (66%↑) |
-| **1억 건** | **44.79ms** | 74.52ms | PostgreSQL (40%↑) |
+| 규모 | PostgreSQL | Elasticsearch | 승자 (개선율) | 트리거 | 생성기 |
+|:----:|:----------:|:-------------:|:-------------:|:------:|:------:|
+| **300만 건** | **24.51ms** | 72.51ms | PostgreSQL (66%↑) | ✅ 활성화 | Faker 사용 |
+| **3,000만 건** | **21.46ms** | 63.81ms | PostgreSQL (66%↑) | ❌ 비활성화 | Faker 제거 |
+| **1억 건** | **44.79ms** | 74.52ms | PostgreSQL (40%↑) | ❌ 비활성화 | Faker 제거 |
 
 > *개선율은 Elasticsearch 대비 PostgreSQL 성능 향상 비율입니다.*
+> *300만 건은 트리거 활성화 상태로 테스트되어 불리한 조건입니다.*
 
 #### 💡 분석 결과
 
