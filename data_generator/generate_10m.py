@@ -36,7 +36,7 @@ DB_CONFIG = {
 }
 
 # 데이터 생성 설정
-TARGET_SHIPMENTS = 10_000_000        # 1,000만 건
+TARGET_SHIPMENTS = 30_000_000        # 3,000만 건
 CHUNK_SIZE = 100_000                 # 워커당 10만 건씩 처리 (메모리 관리 용이)
 NUM_WORKERS = max(1, cpu_count() - 1)  # CPU 코어 - 1개 사용
 
@@ -167,8 +167,10 @@ def init_db():
     cur.execute("TRUNCATE TABLE warehouses RESTART IDENTITY CASCADE;")
     cur.execute("TRUNCATE TABLE companies RESTART IDENTITY CASCADE;")
     
-    # 대량 로딩을 위해 트리거/인덱스 잠시 비활성화 하면 좋지만, 
-    # generate_100m_parallel.py 처럼 단순화하여 진행 (필요 시 추가)
+    # 📌 최적화: 대량 로드시 트리거 비활성화 (1억건 생성기와 동일 환경)
+    print("   ⚡ 트리거 비활성화...")
+    cur.execute("ALTER TABLE shipment_updates DISABLE TRIGGER ALL;")
+    cur.execute("ALTER TABLE shipments DISABLE TRIGGER ALL;")
     
     conn.commit()
     print("   ✅ 완료")
@@ -313,8 +315,14 @@ def main():
         print(f"\r   ⏳ 적재: {(i+1)/total_chunks*100:5.1f}% ({i+1}/{total_chunks})", end="")
 
     # 5. 마무리
-    print("\n\n⚙️ [Phase 4] 시퀀스 동기화...")
+    print("\n\n⚙️ [Phase 4] 시퀀스 동기화 및 트리거 활성화...")
     cur.execute(f"SELECT setval('shipments_shipment_id_seq', {TARGET_SHIPMENTS}, true);")
+    
+    # 📌 트리거 재활성화
+    print("   ⚡ 트리거 활성화 중...")
+    cur.execute("ALTER TABLE shipment_updates ENABLE TRIGGER ALL;")
+    cur.execute("ALTER TABLE shipments ENABLE TRIGGER ALL;")
+    
     conn.commit()
     conn.close()
     
