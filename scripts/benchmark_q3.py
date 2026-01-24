@@ -3,11 +3,43 @@ import time
 import statistics
 import concurrent.futures
 import random
+import psycopg2
 
 # 설정
 API_URL = "http://localhost:8000"
 TOTAL_REQUESTS = 500  # 전략당 요청 횟수
 CONCURRENCY = 30      # 동시 요청 수
+
+# PostgreSQL 연결 (트리거 제어용)
+DB_CONFIG = {
+    'host': 'localhost',
+    'port': 5433,
+    'user': 'postgres',
+    'password': 'logisflow1234',
+    'dbname': 'logisflow'
+}
+
+
+def set_trigger_state(enabled: bool):
+    """
+    트리거 상태 제어
+    
+    - enabled=True: 트리거 활성화 (trigger 전략용)
+    - enabled=False: 트리거 비활성화 (sync, async 전략용)
+    """
+    conn = psycopg2.connect(**DB_CONFIG)
+    cur = conn.cursor()
+    
+    action = "ENABLE" if enabled else "DISABLE"
+    cur.execute(f"ALTER TABLE shipment_updates {action} TRIGGER ALL;")
+    
+    conn.commit()
+    cur.close()
+    conn.close()
+    
+    status = "활성화 ✅" if enabled else "비활성화 ❌"
+    print(f"   🔔 트리거 {status}")
+
 
 def send_request(shipment_id, strategy):
     """API 요청 전송"""
@@ -33,6 +65,12 @@ def send_request(shipment_id, strategy):
 def run_benchmark(strategy):
     """특정 전략 벤치마크 실행"""
     print(f"\n🚀 Benchmarking Strategy: {strategy} ...")
+    
+    # 📌 전략별 트리거 상태 설정 (공정한 비교!)
+    if strategy == "trigger":
+        set_trigger_state(enabled=True)   # trigger 전략은 트리거 ON
+    else:
+        set_trigger_state(enabled=False)  # sync, async 등은 트리거 OFF
     
     latencies = []
     server_times = []
@@ -75,23 +113,28 @@ def run_benchmark(strategy):
 
 if __name__ == "__main__":
     print(f"🔥 Starting Q3 Benchmark (Requests: {TOTAL_REQUESTS}, Concurrency: {CONCURRENCY})")
+    print("📌 트리거 자동 제어: trigger 전략만 ON, 나머지는 OFF")
     
     results = []
     
-    # 전략 1: Sync
+    # 전략 1: Sync (트리거 OFF)
     results.append(run_benchmark("sync"))
     
-    # 전략 2: Trigger
+    # 전략 2: Trigger (트리거 ON)
     results.append(run_benchmark("trigger"))
     
-    # 전략 3: Async (DB INSERT + Kafka)
+    # 전략 3: Async (트리거 OFF + Kafka)
     results.append(run_benchmark("async"))
     
-    # 전략 4: Async Pure (SELECT + Kafka만)
+    # 전략 4: Async Pure (트리거 OFF + Kafka만)
     results.append(run_benchmark("async_pure"))
     
-    # 전략 5: Async Fire (Kafka만, SELECT도 없음!)
+    # 전략 5: Async Fire (트리거 OFF + Kafka만, SELECT도 없음!)
     results.append(run_benchmark("async_fire"))
+    
+    # 벤치마크 완료 후 트리거 원복
+    set_trigger_state(enabled=True)
+    print("\n   🔔 벤치마크 완료, 트리거 원복 (활성화)")
     
     print("\n" + "=" * 85)
     print("🏆 FINAL RESULTS")
@@ -104,3 +147,5 @@ if __name__ == "__main__":
     
     print("\n💡 Client Avg = HTTP 왕복 시간 (네트워크 포함)")
     print("💡 Server Avg = 순수 서버 처리 시간 (API 내부)")
+    print("💡 트리거: trigger 전략만 ON, 나머지는 OFF로 테스트됨")
+
