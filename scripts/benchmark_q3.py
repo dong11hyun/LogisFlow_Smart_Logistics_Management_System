@@ -39,7 +39,7 @@ def run_benchmark(strategy):
     success_count = 0
     
     # 1~1천만번 화물에 대해 테스트 (1천만 건 데이터)
-    shipment_ids = [random.randint(1, 10000000) for _ in range(TOTAL_REQUESTS)]
+    shipment_ids = [random.randint(1, 3000000) for _ in range(TOTAL_REQUESTS)]
     
     start_total = time.time()
     

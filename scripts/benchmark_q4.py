@@ -53,7 +53,7 @@ def run_benchmark(source: str):
     success_count = 0
     
     # 1~1억 범위의 랜덤 화물 ID (1억 건 테스트용)
-    shipment_ids = [random.randint(1, 100_000_000) for _ in range(TOTAL_REQUESTS)]
+    shipment_ids = [random.randint(1, 3000000) for _ in range(TOTAL_REQUESTS)]
     
     start_total = time.time()
     
