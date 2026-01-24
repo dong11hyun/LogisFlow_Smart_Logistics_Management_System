@@ -1,6 +1,6 @@
 """
 PostgreSQL → Elasticsearch 데이터 마이그레이션 스크립트 (최적화 버전)
-
+.
 📌 최적화 사항:
   1. Keyset Pagination: OFFSET 대신 WHERE update_id > last_id 사용 (O(n) → O(1))
   2. 배치 크기 증가: 1,000 → 10,000
