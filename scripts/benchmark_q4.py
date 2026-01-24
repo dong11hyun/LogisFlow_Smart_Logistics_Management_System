@@ -52,8 +52,8 @@ def run_benchmark(source: str):
     update_counts = []
     success_count = 0
     
-    # 1~100000 범위의 랜덤 화물 ID
-    shipment_ids = [random.randint(1, 100000) for _ in range(TOTAL_REQUESTS)]
+    # 1~1억 범위의 랜덤 화물 ID (1억 건 테스트용)
+    shipment_ids = [random.randint(1, 100_000_000) for _ in range(TOTAL_REQUESTS)]
     
     start_total = time.time()
     
