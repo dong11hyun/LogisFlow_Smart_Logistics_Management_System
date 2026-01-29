@@ -96,7 +96,7 @@ app.include_router(shipments.router)
 
 @app.get("/")
 @limiter.limit("10/minute") # 테스트를 위한 Rate Limit 설정
-def root():
+def root(request: Request):
     """API 루트"""
     return {
         "message": "LogisFlow API",
