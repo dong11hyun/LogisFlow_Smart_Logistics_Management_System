@@ -514,36 +514,37 @@ async def get_status(id: int):
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│                      LogisFlow Architecture (확장)                           │
+│                    LogisFlow Architecture (Current Implementation)           │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
-│  ┌──────────┐     ┌──────────────┐     ┌──────────────┐     ┌─────────────┐ │
-│  │  Client  │───▶│  Rate Limit  │───▶│  FastAPI     │───▶│  PgBouncer  │ │
-│  │          │     │  (API 계층)   │     │  (Backend)   │     │  (Pool)     │ │
-│  └──────────┘     └──────────────┘     └──────┬───────┘     └──────┬──────┘ │
-│                                               │                     │        │
-│                                               │              ┌──────┴──────┐ │
-│                                               │              ▼             ▼ │
-│                                               │     ┌─────────────┐ ┌──────────────┐
-│                                               │     │  Primary    │ │ Read Replica │
-│                                               │     │  (Write)    │ │ (Read x N)   │
-│                                               │     └─────────────┘ └──────────────┘
-│                                               ▼                                  │
-│                                        ┌──────────────┐                          │
-│                                        │    Kafka     │                          │
-│                                        │   (비동기)   │                          │
-│                                        └──────┬───────┘                          │
-│                                               │                                  │
-│                                               ▼                                  │
-│                                        ┌──────────────┐     ┌──────────────────┐ │
-│                                        │   Consumer   │────▶│  Elasticsearch  │ │
-│                                        │              │     │  (이력 검색)      │ │
-│                                        └──────────────┘     └──────────────────┘ │
-└──────────────────────────────────────────────────────────────────────────────────┘
+│  ┌──────────┐      ┌──────────────────────────┐      ┌──────────────┐        │
+│  │  Client  │─────▶│  FastAPI (Backend)       │─────▶│  PgBouncer   │        │
+│  │ (User/k6)│      │  [Rate Limit: SlowAPI]   │      │ (Conn Pool)  │        │
+│  └──────────┘      └────────────┬─────────────┘      └──────┬───────┘        │
+│                                 │                           │                │
+│                                 │                    ┌──────┴──────┐         │
+│                                 │                    ▼             │         │
+│                                 │           ┌─────────────┐        │         │
+│                                 │           │ PostgreSQL  │        │         │
+│                                 │           │  (Primary)  │◀───────┘         │
+│                                 │           └─────────────┘                  │
+│                                 ▼                                            │
+│                          ┌──────────────┐                                    │
+│                          │    Kafka     │                                    │
+│                          │   (Async)    │                                    │
+│                          └──────┬───────┘                                    │
+│                                 │                                            │
+│                                 ▼                                            │
+│                          ┌──────────────┐     ┌──────────────────┐           │
+│                          │   Consumer   │────▶│  Elasticsearch   │           │
+│                          │  (Background)│     │  (Log Archive)   │           │
+│                          └──────────────┘     └──────────────────┘           │
+└──────────────────────────────────────────────────────────────────────────────┘
 B3_LogisFlow/
 ├── backend/
+│   ├── requirements.txt         # 의존성
 │   └── app/
-│       ├── main.py                  # FastAPI 앱 + Kafka 라이프사이클
+│       ├── main.py                  # FastAPI 앱 + Rate Limit(SlowAPI)
 │       ├── config.py                # 설정
 │       ├── database.py              # DB 연결
 │       ├── models.py                # SQLAlchemy 모델
@@ -553,7 +554,10 @@ B3_LogisFlow/
 │       ├── elasticsearch_client.py  # Q4 ES 클라이언트
 │       └── routers/
 │           ├── shipments.py         # Q3/Q4 API
-│           └── health.py
+│           └── health.py            # 헬스체크 (DB 연결 확인용)
+├── pgbouncer/                       # Connection Pooler 설정
+│   ├── pgbouncer.ini
+│   └── userlist.txt
 ├── schema/
 │   ├── 01_schema.sql                # 비정규화 스키마
 │   ├── 02_indexes.sql               # 인덱스
@@ -561,6 +565,7 @@ B3_LogisFlow/
 │   ├── 04_partitioned_schema.sql    # Q4 파티션 테이블
 │   └── 05_trigger_strategy.sql      # Q3 트리거
 ├── scripts/
+│   ├── k6_load_test.js              # 부하 테스트 (Rate Limit/Conn Pool)
 │   ├── benchmark_q3.py              # Q3 벤치마크
 │   ├── benchmark_q4.py              # Q4 벤치마크
 │   ├── setup_elasticsearch.py       # ES 초기화
