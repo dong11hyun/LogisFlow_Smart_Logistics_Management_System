@@ -397,10 +397,14 @@ shipment_updates 테이블은 시간이 지남에 따라 무한히 커질 것입
 
 ---
 
-### 🤔Q6. (openAI글 참고-추후고려)Connection Pooling 및 Rate Limiting 전략
+### 🤔Q6. (openAI글 참고-추후고려) Connection Pooling 및 Rate Limiting 전략
 
 대규모 트래픽에서 DB 연결 폭주와 트래픽 스파이크를 어떻게 방어할 것인가?
 
+```
+# k6 실행코드
+docker run --rm -i -v "${PWD}/scripts:/scripts" -e BASE_URL=http://host.docker.internal:8000 grafana/k6 run /scripts/k6_load_test.js
+```
 > **[답변]**
 
 ####  Connection Pooling (PgBouncer)
@@ -433,10 +437,8 @@ shipment_updates 테이블은 시간이 지남에 따라 무한히 커질 것입
 
 | 계층 | 도구 | 역할 |
 |------|------|------|
-| **API Gateway** | Nginx, Kong | 전역 요청 제한 (예: 10,000 req/s) |
-| **Application** | FastAPI Limiter | 엔드포인트별 제한 (예: /status 1,000 req/s) |
-| **Connection Pool** | PgBouncer | 연결 수 제한 (예: max 100 conn) |
-| **Query Level** | pg_stat_statements | 특정 쿼리 digest 차단/제한 |
+| **Application** | FastAPI (SlowAPI) | **[구현]** 엔드포인트별 제한 (예: 루트 / 10회/분) |
+| **Connection Pool** | PgBouncer | **[구현]** 연결 수 제한 (max 1,000 conn) |
 
 **핵심 설정:**
 
@@ -476,20 +478,19 @@ async def get_status(id: int):
     - Rate Limit: 분당 10회 (테스트용)
     - Connection Pool: Max 20
 
-**2. 테스트 결과 (k6_load_test.js 실행)**
+**2. 테스트 결과 (scripts/k6_load_test.js 실행)**
 
-| 구분 | 결과 | 분석 |
-|------|------|------|
-| **Normal Traffic** | 200 OK (Avg 5ms) | Connection Pooling으로 빠른 응답 속도 유지 |
-| **Traffic Spike** | 429 Too Many Requests | Rate Limiter가 과도한 요청을 즉시 차단하여 서버 리소스 보호 |
-| **DB Connection** | 안정적 유지 (20개 미만) | 수천 건의 요청에도 pgBouncer가 DB 연결 수를 일정하게 유지 |
+| 구분 | 결과 (Total 4,012 Req) | 분석 |
+|------|------------------------|------|
+| **Rate Limiting** | **1,996건 차단 (429)** | Rate Limiter가 분당 10회 정책을 칼같이 지켜 트래픽 폭주를 완벽히 방어함 |
+| **Connection Pooling** | **2,006건 성공 (0건 실패)** | 트래픽 스파이크 공격 속에서도 DB 연결은 100% 안정적으로 유지됨 (Avg 8.8ms) |
 
 **3. 엔지니어링 인사이트**
-> "단순히 기능을 구현하는 것을 넘어, **극한의 상황(Spike)**에서도 시스템이 **우아하게 실패(Graceful Failure)**하도록 설계하는 것이 핵심입니다."
+> "단순히 기능을 구현하는 것을 넘어, **극한의 상황(Spike)**에서도 시스템이 **우아하게 실패**하도록 설계하는 것이 핵심입니다."
 >
-> - **Connection Pooling:** DB는 스케일 아웃이 가장 어려운 컴포넌트입니다. pgBouncer를 통해 DB 연결 비용을 제거하고, 수만 개의 동시 접속을 수용 가능한 구조로 만들었습니다.
-> - **Multi-layered Guard:** FastAPI(App), pgBouncer(DB) 각 계층에서 다중 방어선을 구축하여, 단일 지점 실패가 전체 시스템 중단으로 이어지는 것을 방지했습니다.
-> - **Observability:** 부하 테스트 스크립트(`benchmarks/k6_load_test.js`)를 프로젝트에 포함하여, 언제든 성능을 검증하고 병목을 추적할 수 있는 환경을 마련했습니다.
+> - **Connection Pooling:** DB는 스케일 아웃이 가장 어려운 컴포넌트입니다. `pgBouncer`를 도입하여 어플리케이션의 수천 개 연결 요청을 소수의 물리적 DB 연결(Pool)로 효율적으로 변환했습니다. 이를 통해 트래픽 폭주시 DB가 'Too many connections'로 뻗는 것을 원천적으로 차단했습니다.
+> - **Multi-layered Guard:** `FastAPI` 레벨의 Rate Limiter가 1차적으로 악성 트래픽을 거르고, 뚫고 들어온 요청은 `pgBouncer`가 2차적으로 DB를 보호하는 **이중 방어선**을 구축했습니다. 덕분에 단일 지점의 부하가 전체 시스템의 중단(Downtime)으로 이어지지 않습니다.
+> - **Observability:** 부하 테스트 스크립트(`scripts/k6_load_test.js`)를 프로젝트에 포함하여, 언제든 성능을 검증하고 병목을 추적할 수 있는 환경을 마련했습니다.
 
 ---
 
