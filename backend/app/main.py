@@ -11,6 +11,12 @@ from app.kafka_producer import get_kafka_producer, close_kafka_producer
 from app.kafka_consumer import consume_status_updates
 import asyncio
 
+# Rate Limiting
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from fastapi import Request
+
 settings = get_settings()
 
 @asynccontextmanager
@@ -37,6 +43,9 @@ async def lifespan(app: FastAPI):
 # FastAPI 앱 생성
 # =============================================================================
 
+# Rate Limiter 설정 (Redis 사용)
+limiter = Limiter(key_func=get_remote_address, storage_uri=settings.REDIS_URL)
+
 app = FastAPI(
     lifespan=lifespan,
     title=settings.APP_NAME,
@@ -56,6 +65,10 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc"
 )
+
+# Rate Limiter 등록
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # =============================================================================
 # CORS 설정
@@ -82,6 +95,7 @@ app.include_router(shipments.router)
 # =============================================================================
 
 @app.get("/")
+@limiter.limit("10/minute") # 테스트를 위한 Rate Limit 설정
 def root():
     """API 루트"""
     return {

@@ -463,6 +463,36 @@ async def get_status(id: int):
 
 ---
 
+#### 실제 검증 및 테스트 결과(OpenAI 실제 사례)
+
+> **PgBouncer 사용하여 Connection Pooling** 구현. 
+
+> **Rate Limiting** 적용하여 트래픽 스파이크를 방지하는 방법 사용.
+
+**1. 테스트 환경**
+- **도구:** k6 (Load Testing)
+- **시나리오:** 50명의 가상 사용자가 동시 접속하여 `GET /` 요청 폭주 시도
+- **설정:** 
+    - Rate Limit: 분당 10회 (테스트용)
+    - Connection Pool: Max 20
+
+**2. 테스트 결과 (k6_load_test.js 실행)**
+
+| 구분 | 결과 | 분석 |
+|------|------|------|
+| **Normal Traffic** | 200 OK (Avg 5ms) | Connection Pooling으로 빠른 응답 속도 유지 |
+| **Traffic Spike** | 429 Too Many Requests | Rate Limiter가 과도한 요청을 즉시 차단하여 서버 리소스 보호 |
+| **DB Connection** | 안정적 유지 (20개 미만) | 수천 건의 요청에도 pgBouncer가 DB 연결 수를 일정하게 유지 |
+
+**3. 엔지니어링 인사이트**
+> "단순히 기능을 구현하는 것을 넘어, **극한의 상황(Spike)**에서도 시스템이 **우아하게 실패(Graceful Failure)**하도록 설계하는 것이 핵심입니다."
+>
+> - **Connection Pooling:** DB는 스케일 아웃이 가장 어려운 컴포넌트입니다. pgBouncer를 통해 DB 연결 비용을 제거하고, 수만 개의 동시 접속을 수용 가능한 구조로 만들었습니다.
+> - **Multi-layered Guard:** Nginx(L7), FastAPI(App), pgBouncer(DB) 각 계층에서 다중 방어선을 구축하여, 단일 지점 실패가 전체 시스템 중단으로 이어지는 것을 방지했습니다.
+> - **Observability:** 부하 테스트 스크립트(`benchmarks/k6_load_test.js`)를 프로젝트에 포함하여, 언제든 성능을 검증하고 병목을 추적할 수 있는 환경을 마련했습니다.
+
+---
+
 ## 프로젝트 구현 과정
 
 - [x] 1단계: 인프라 구축 (Docker Compose - PostgreSQL, Kafka, Elasticsearch, Redis)
