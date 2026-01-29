@@ -488,7 +488,7 @@ async def get_status(id: int):
 > "단순히 기능을 구현하는 것을 넘어, **극한의 상황(Spike)**에서도 시스템이 **우아하게 실패(Graceful Failure)**하도록 설계하는 것이 핵심입니다."
 >
 > - **Connection Pooling:** DB는 스케일 아웃이 가장 어려운 컴포넌트입니다. pgBouncer를 통해 DB 연결 비용을 제거하고, 수만 개의 동시 접속을 수용 가능한 구조로 만들었습니다.
-> - **Multi-layered Guard:** Nginx(L7), FastAPI(App), pgBouncer(DB) 각 계층에서 다중 방어선을 구축하여, 단일 지점 실패가 전체 시스템 중단으로 이어지는 것을 방지했습니다.
+> - **Multi-layered Guard:** FastAPI(App), pgBouncer(DB) 각 계층에서 다중 방어선을 구축하여, 단일 지점 실패가 전체 시스템 중단으로 이어지는 것을 방지했습니다.
 > - **Observability:** 부하 테스트 스크립트(`benchmarks/k6_load_test.js`)를 프로젝트에 포함하여, 언제든 성능을 검증하고 병목을 추적할 수 있는 환경을 마련했습니다.
 
 ---
