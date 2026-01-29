@@ -71,6 +71,30 @@ services:
     networks:
       - logisflow-network
 
+
+  # ===========================================================================
+  # pgBouncer - Connection Pooler
+  # ===========================================================================
+  # 역할: 데이터베이스 연결 풀링을 통해 연결 부하 감소 및 성능 향상
+  # 포트: 6432 (애플리케이션은 이 포트로 접속)
+  # ===========================================================================
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: logisflow-pgbouncer
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgres://postgres:logisflow1234@postgres:5432/logisflow"
+    ports:
+      - "6432:6432"
+    volumes:
+      - ./pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini
+      - ./pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt
+    networks:
+      - logisflow-network
+
   # ===========================================================================
   # Zookeeper - Kafka 클러스터 코디네이터
   # ===========================================================================
