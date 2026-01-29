@@ -514,7 +514,7 @@ async def get_status(id: int):
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│                    LogisFlow Architecture (Current Implementation)           │
+│                    LogisFlow Architecture           │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  ┌──────────┐      ┌──────────────────────────┐      ┌──────────────┐        │
@@ -544,7 +544,7 @@ B3_LogisFlow/
 ├── backend/
 │   ├── requirements.txt         # 의존성
 │   └── app/
-│       ├── main.py                  # FastAPI 앱 + Rate Limit(SlowAPI)
+│       ├── main.py                  # FastAPI 앱 + Rate Limit(SlowAPI) + Kafka 라이프사이클
 │       ├── config.py                # 설정
 │       ├── database.py              # DB 연결
 │       ├── models.py                # SQLAlchemy 모델
