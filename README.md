@@ -442,7 +442,6 @@ shipment_updates 테이블은 시간이 지남에 따라 무한히 커질 것입
 # k6 실행코드
 docker run --rm -i -v "${PWD}/scripts:/scripts" -e BASE_URL=http://host.docker.internal:8000 grafana/k6 run /scripts/k6_load_test.js
 ```
-> **[답변]**
 
 #### 🔶 방안 1: Connection Pooling (PgBouncer)
 
