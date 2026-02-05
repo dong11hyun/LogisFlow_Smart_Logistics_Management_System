@@ -434,7 +434,7 @@ shipment_updates 테이블은 시간이 지남에 따라 무한히 커질 것입
 
 ---
 
-### 🤔Q6. (openAI글 참고-추후고려) Connection Pooling 및 Rate Limiting 전략
+### 🤔Q6. (OpenAI 참고) 대규모 트래픽 폭주와 DB 연결 고갈 방어 전략
 
 대규모 트래픽에서 DB 연결 폭주와 트래픽 스파이크를 어떻게 방어할 것인가?
 
@@ -444,7 +444,7 @@ docker run --rm -i -v "${PWD}/scripts:/scripts" -e BASE_URL=http://host.docker.i
 ```
 > **[답변]**
 
-####  Connection Pooling (PgBouncer)
+#### 🔶 방안 1: Connection Pooling (PgBouncer)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -468,7 +468,10 @@ docker run --rm -i -v "${PWD}/scripts:/scripts" -e BASE_URL=http://host.docker.i
 | 최대 동시 연결 | ~5,000 | 10,000+ |
 | Connection Storm 방어 | ❌ | ✅ |
 
-#### 다계층 Rate Limiting
+> **PostgreSQL (Process-based):** 연결마다 독립 프로세스를 생성하여 메모리(약 10MB)와 CPU(컨텍스트 스위칭) 부하가 큼. 5,000개 연결 시 서버 한계 도달.
+> **PgBouncer (Event-driven):** `Nginx`처럼 가벼운 이벤트 루프 방식. 수만 개의 클라이언트 연결을 받아, 소수의 실제 DB 연결(100개)로 **고속 멀티플렉싱(Multiplexing)** 처리.
+
+#### 🔶 방안 2: 다계층 Rate Limiting
 
 트래픽 스파이크로 인한 DB 과부하 방지를 위해 여러 계층에서 rate limit 적용:
 
@@ -502,7 +505,7 @@ async def get_status(id: int):
 
 ---
 
-#### 실제 검증 및 테스트 결과(OpenAI 실제 사례)
+#### 🔶실제 검증 및 테스트 결과
 
 > **PgBouncer 사용하여 Connection Pooling** 구현. 
 
@@ -523,7 +526,7 @@ async def get_status(id: int):
 | **Connection Pooling** | **2,006건 성공 (0건 실패)** | 트래픽 스파이크 공격 속에서도 DB 연결은 100% 안정적으로 유지됨 (Avg 8.8ms) |
 
 **3. 엔지니어링 인사이트**
-> "단순히 기능을 구현하는 것을 넘어, **극한의 상황(Spike)**에서도 시스템이 **우아하게 실패**하도록 설계하는 것이 핵심입니다."
+> "단순히 기능을 구현하는 것을 넘어, **극한의 상황(Spike)** 에서도 시스템이 **실패하지 않도록** 설계하는 것이 핵심입니다."
 >
 > - **Connection Pooling:** DB는 스케일 아웃이 가장 어려운 컴포넌트입니다. `pgBouncer`를 도입하여 어플리케이션의 수천 개 연결 요청을 소수의 물리적 DB 연결(Pool)로 효율적으로 변환했습니다. 이를 통해 트래픽 폭주시 DB가 'Too many connections'로 뻗는 것을 원천적으로 차단했습니다.
 > - **Multi-layered Guard:** `FastAPI` 레벨의 Rate Limiter가 1차적으로 악성 트래픽을 거르고, 뚫고 들어온 요청은 `pgBouncer`가 2차적으로 DB를 보호하는 **이중 방어선**을 구축했습니다. 덕분에 단일 지점의 부하가 전체 시스템의 중단(Downtime)으로 이어지지 않습니다.

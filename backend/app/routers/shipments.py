@@ -89,7 +89,6 @@ async def update_status(
     - "trigger": DB 트리거 (전략 2) - TODO
     - "async": Kafka 비동기 (전략 3) - TODO
     
-    현재는 sync 전략만 구현됨
     """
     start_time = time.time()
     
