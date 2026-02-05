@@ -211,7 +211,7 @@ PostgreSQL의 MVCC는 읽기/쓰기 동시성을 보장하지만, write-heavy wo
 
 | OpenAI 전략 | LogisFlow 적용 (우리가 한 것) |
 |:---|:---|
-| **Write-Heavy 분리** | 트랜잭션(`sync/trigger`) 대신 **Kafka(async)**를 도입해 DB 쓰기 작업을 비동기로 분리함 |
+| **Write-Heavy 분리** | 트랜잭션(`sync/trigger`) 대신 **Kafka(async)** 를 도입해 DB 쓰기 작업을 비동기로 분리함 |
 | **Sharded System 이관** | 이력 조회(`SELECT`) 부하를 RDB에서 **Elasticsearch**로 넘김 (Q4 내용) |
 
 **출처:**
