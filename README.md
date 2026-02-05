@@ -174,10 +174,10 @@ shipments 테이블의 구조를 어떻게 변경하여 대시보드 로딩에 �
 
 동일 조건에서 여러 번 테스트 시, trigger 전략은 **17ms ~ 28ms**로 편차가 큼.
 
-| 원인 | 설명 | 우리 상황 |
+| 원인 | 설명 | 본 프로젝트에서의 영향 |
 |------|------|----------|
-| **Lock 경합** | UPDATE 시 row-level lock을 잡고 트랜잭션 종료까지 유지. 트리거가 다른 테이블을 UPDATE하면 그 lock도 전체 트랜잭션 동안 유지됨 | 동시 요청이 같은 `shipment_id`를 UPDATE하면 대기 발생 |
-| **MVCC 백그라운드 작업** | Autovacuum이 dead tuple을 정리하거나, Checkpoint가 dirty page를 flush할 때 I/O 스파이크 발생 | 1차 테스트 후 2차 테스트 중 Autovacuum 실행 시 성능 저하 |
+| **Row-level Lock 경합** | UPDATE 시 row-level lock을 잡고 트랜잭션 종료까지 유지. 트리거가 다른 테이블을 UPDATE하면 그 lock도 전체 트랜잭션 동안 유지됨 | 동시 요청이 같은 `shipment_id`를 UPDATE하면 대기 발생 |
+| **MVCC 백그라운드 작업** | Autovacuum이 dead tuple을 정리하거나, Checkpoint가 dirty page를 flush할 때 I/O 스파이크 발생 | 1차 테스트 후 Dead Tuple 누적 → 2차 테스트 중 Autovacuum 실행 시 I/O 스파이크로 응답 지연 |
 | **Dirty Page 해소** | Background Writer가 따라가지 못하면 backend process가 직접 dirty buffer를 write → 쿼리 blocking | 1차 테스트로 메모리가 가득 찬 후 2차 테스트 시 eviction 발생 |
 
 **MVCC(Multi-Version Concurrency Control) 심층 분석:**
