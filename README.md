@@ -217,9 +217,9 @@ PostgreSQL의 MVCC는 읽기/쓰기 동시성을 보장하지만, write-heavy wo
 **출처:**
 - [PostgreSQL 공식 문서 - Explicit Locking](https://www.postgresql.org/docs/current/explicit-locking.html)
 - [PostgreSQL 공식 문서 - WAL Configuration](https://www.postgresql.org/docs/current/wal-configuration.html)
-- [Cybertec - Trigger Performance](https://www.cybertec-postgresql.com/en/postgresql-triggers-performance/)
+- [Cybertec - Trigger Performance](https://www.cybertec-postgresql.com/en/more-on-postgres-trigger-performance/)
 - [EnterpriseDB - Autovacuum Best Practices](https://www.enterprisedb.com/blog/postgresql-vacuum-and-analyze-best-practice-tips)
-- [OpenAI Engineering - Scaling PostgreSQL](https://openai.com/index/scaling-postgres/) (2025)
+- [OpenAI Engineering - Scaling PostgreSQL](https://openai.com/ko-KR/index/scaling-postgresql/) (2025)
 
 → **일관된 응답 시간(SLA)** 이 중요하다면 trigger보다 async 계열이 안전함.
 
@@ -346,23 +346,53 @@ xychart-beta
 
 → 현재 추세로 **약 3~5억 건** 구간에서 Elasticsearch가 PostgreSQL을 추월할 것으로 예측
 
-#### 🔄 방안 3: Cascading Replication (대규모 읽기 확장)
+####  🔶(추가) 언제 확장이 필요한가? (Expansion Roadmap)
 
-Read Replica가 많아지면 Primary가 모든 replica에 WAL을 전송해야 하므로 병목 발생. **Cascading Replication**으로 해결:
+**1. 확장 신호 (Signal):**
+- **CPU:** 피크 시간대 DB CPU 사용률 **70~80%** 지속 시
+- **Latency:** 단순 조회 쿼리 응답 속도 저하 또는 타임아웃 발생 시
+- **Connection:** 커넥션 풀 고갈 빈번 발생 시
 
+**2. 단계별 확장 전략:**
+
+| 단계 | 구성 | 적용 시점 | 비고 |
+|:---:|:---|:---|:---|
+| **Step 1 (현재)** | **단일 DB** | 초기 스타트업, 트래픽 적음 | 모든 읽기/쓰기 처리 |
+| **Step 2** | **Read Replica 도입** | 읽기 부하 증가 시 | Primary(쓰기) + Replica(읽기) 1~2대 분리 |
+| **🔶Step 3** | **Cascading Replication** | Replica 10대 이상 필요 시 | Primary 부하 감소를 위해 중간 계층 도입 (본 제안) |
+
+#### 🔶 Step 3 상세: Cascading Replication 아키텍처 (미구현 제안)
+
+**※ 본 프로젝트는 단일 DB 환경이나, 대규모 운영 환경을 가정한 아키텍처 제안입니다.**
+
+Read Replica가 50개 이상으로 많아지면 Primary가 모든 replica에 WAL을 전송해야 하므로 병목이 발생합니다. 이를 **Cascading Replication**으로 해결할 수 있습니다:
+
+```mermaid
+graph TD
+    subgraph AS_IS [기존 : Primary 병목 발생]
+        P1[Primary DB] --WAL전송 x 50회--> R1[Replica 1...50]
+        style P1 fill:#ffcccc,stroke:#ff0000,stroke-width:2px
+    end
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  기존: Primary → 50개 Replica (WAL 50회 전송, 병목)              │
-├─────────────────────────────────────────────────────────────────┤
-│  개선: Primary → Intermediate Replica → Downstream Replicas    │
-│                                                                 │
-│        Primary ──┬──▶ Intermediate-1 ──▶ Replica 1~10          │
-│                  ├──▶ Intermediate-2 ──▶ Replica 11~20         │
-│                  └──▶ Intermediate-3 ──▶ Replica 21~30         │
-│                                                                 │
-│  효과: Primary WAL 전송 3회로 감소, 100+ Replica 확장 가능       │
-└─────────────────────────────────────────────────────────────────┘
+
+```mermaid
+graph TD
+    subgraph TO_BE [개선 : Cascading Replication]
+        P2[Primary DB] --> I1[Intermediate 1]
+        P2[Primary DB] --> I2[Intermediate 2]
+        P2[Primary DB] --> I3[Intermediate 3]
+        
+        I1 --> R11[Replica 1~30]
+        I2 --> R12[Replica 31~60]
+        I3 --> R13[Replica 61~90]
+        
+        style P2 fill:#ccffcc,stroke:#00aa00,stroke-width:2px
+        style I1 fill:#ffffcc
+        style I2 fill:#ffffcc
+        style I3 fill:#ffffcc
+    end
 ```
+> **효과:** Primary의 WAL 전송 부하가 50회 → 3회로 급감하여, CPU 자원을 온전히 쓰기 처리에 집중할 수 있음
 
 | 장점 | 단점 |
 |------|------|
