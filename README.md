@@ -180,7 +180,7 @@ shipments 테이블의 구조를 어떻게 변경하여 대시보드 로딩에 �
 | **MVCC 백그라운드 작업** | Autovacuum이 dead tuple을 정리하거나, Checkpoint가 dirty page를 flush할 때 I/O 스파이크 발생 | 1차 테스트 후 Dead Tuple 누적 → 2차 테스트 중 Autovacuum 실행 시 I/O 스파이크로 응답 지연 |
 | **Dirty Page 해소** | Background Writer가 따라가지 못하면 backend process가 직접 dirty buffer를 write → 쿼리 blocking | 1차 테스트로 메모리가 가득 찬 후 2차 테스트 시 eviction 발생 |
 
-**📚 MVCC(Multi-Version Concurrency Control) 심층 분석:**
+**MVCC(Multi-Version Concurrency Control) 심층 분석:**
 
 PostgreSQL의 MVCC는 읽기/쓰기 동시성을 보장하지만, write-heavy workload에서 병목이 됩니다:
 
@@ -199,13 +199,20 @@ PostgreSQL의 MVCC는 읽기/쓰기 동시성을 보장하지만, write-heavy wo
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**🚀 Write-Heavy Workload 분리 전략 (OpenAI 사례):**
+**🤔Write-Heavy Workload 분리 전략 (OpenAI 사례):**
 
 | 전략 | 설명 | 적용 예시 |
 |------|------|----------|
 | **Sharded System 분리** | 샤딩 가능한 write-heavy 워크로드를 별도 시스템으로 이관 | `shipment_updates` → CosmosDB, DynamoDB |
 | **Lazy Write** | 즉시 쓰기 대신 배치/지연 쓰기로 스파이크 완화 | 상태 업데이트 큐잉 후 주기적 flush |
 | **신규 테이블 금지** | 기존 PostgreSQL에 신규 테이블 추가 금지 | 새 기능은 샤드 시스템에 구축 |
+
+**🤔 LogisFlow 프로젝트 적용:**
+
+| OpenAI 전략 | LogisFlow 적용 (우리가 한 것) |
+|:---|:---|
+| **Write-Heavy 분리** | 트랜잭션(`sync/trigger`) 대신 **Kafka(async)** 를 도입해 DB 쓰기 작업을 비동기로 분리함 |
+| **Sharded System 이관** | 이력 조회(`SELECT`) 부하를 RDB에서 **Elasticsearch**로 넘김 (Q4 내용) |
 
 **출처:**
 - [PostgreSQL 공식 문서 - Explicit Locking](https://www.postgresql.org/docs/current/explicit-locking.html)
